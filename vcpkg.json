@@ -1,0 +1,39 @@
+{
+  "name" : "tiff",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "f0c8848cde589649bca3ab3649668540403786ce",
+  "dependencies" : [ {
+    "name" : "gtest",
+    "version>=" : "1.14.0#1"
+  }, {
+    "name" : "jbigkit",
+    "version>=" : "2.1#7"
+  }, {
+    "name" : "lerc",
+    "version>=" : "4.0.4"
+  }, {
+    "name" : "libdeflate",
+    "version>=" : "1.20"
+  }, {
+    "name" : "libjpeg-turbo",
+    "version>=" : "3.0.2"
+  }, {
+    "name" : "liblzma",
+    "version>=" : "5.4.4"
+  }, {
+    "name" : "vcpkg-cmake-config",
+    "version>=" : "2022-02-06#1"
+  }, {
+    "name" : "vcpkg-cmake",
+    "version>=" : "2023-05-04"
+  }, {
+    "name" : "zlib",
+    "version>=" : "1.3.1"
+  }, {
+    "name" : "zstd",
+    "version>=" : "1.5.6"
+  }, {
+    "name" : "libwebp",
+    "version>=" : "1.4.0"
+  } ]
+}
