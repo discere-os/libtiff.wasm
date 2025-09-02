@@ -1946,16 +1946,15 @@ DECLAREContigPutFunc(putRGBUAcontig16bittile)
 DECLAREContigPutFunc(putRGBcontig8bitCMYKtile)
 {
     int samplesperpixel = img->samplesperpixel;
-    uint16_t r, g, b, k;
 
     (void)x;
     (void)y;
     fromskew *= samplesperpixel;
     for (; h > 0; --h)
     {
-        UNROLL8(w, NOP, k = 255 - pp[3]; r = (k * (255 - pp[0])) / 255;
-                g = (k * (255 - pp[1])) / 255; b = (k * (255 - pp[2])) / 255;
-                *cp++ = PACK(r, g, b); pp += samplesperpixel);
+        UNROLL8(w, NOP, pp[0]; pp[1]; pp[2]; pp[3];
+                *cp++ = PACK4(pp[0], pp[1], pp[2], pp[3]);
+                pp += samplesperpixel);
         cp += toskew;
         pp += fromskew;
     }
