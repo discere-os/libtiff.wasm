@@ -469,7 +469,14 @@ int TIFFReadScanline(TIFF *tif, void *buf, uint32_t row, uint16_t sample)
         tif->tif_row = row + 1;
 
         if (e)
-            (*tif->tif_postdecode)(tif, (uint8_t *)buf, tif->tif_scanlinesize);
+        {
+            e = _TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode,
+                                           tif->tif_scanlinesize,
+                                           "TIFFReadScanline");
+            if (e)
+                (*tif->tif_postdecode)(tif, (uint8_t *)buf,
+                                       tif->tif_scanlinesize);
+        }
     }
     else
     {
@@ -555,6 +562,9 @@ tmsize_t TIFFReadEncodedStrip(TIFF *tif, uint32_t strip, void *buf,
             (tif->tif_flags & TIFF_NOBITREV) == 0)
             TIFFReverseBits(buf, stripsize);
 
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, stripsize,
+                                        module))
+            return ((tmsize_t)(-1));
         (*tif->tif_postdecode)(tif, buf, stripsize);
         return (stripsize);
     }
@@ -570,6 +580,9 @@ tmsize_t TIFFReadEncodedStrip(TIFF *tif, uint32_t strip, void *buf,
         return ((tmsize_t)(-1));
     }
     if ((*tif->tif_decodestrip)(tif, buf, stripsize, plane) <= 0)
+        return ((tmsize_t)(-1));
+    if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, stripsize,
+                                    module))
         return ((tmsize_t)(-1));
     (*tif->tif_postdecode)(tif, buf, stripsize);
     return (stripsize);
@@ -612,6 +625,9 @@ tmsize_t _TIFFReadEncodedStripAndAllocBuffer(TIFF *tif, uint32_t strip,
     _TIFFmemset(*buf, 0, bufsizetoalloc);
 
     if ((*tif->tif_decodestrip)(tif, *buf, this_stripsize, plane) <= 0)
+        return ((tmsize_t)(-1));
+    if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, this_stripsize,
+                                    "_TIFFReadEncodedStripAndAllocBuffer"))
         return ((tmsize_t)(-1));
     (*tif->tif_postdecode)(tif, *buf, this_stripsize);
     return (this_stripsize);
@@ -978,6 +994,9 @@ tmsize_t TIFFReadEncodedTile(TIFF *tif, uint32_t tile, void *buf, tmsize_t size)
             (tif->tif_flags & TIFF_NOBITREV) == 0)
             TIFFReverseBits(buf, tilesize);
 
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, tilesize,
+                                        module))
+            return ((tmsize_t)(-1));
         (*tif->tif_postdecode)(tif, buf, tilesize);
         return (tilesize);
     }
@@ -996,6 +1015,8 @@ tmsize_t TIFFReadEncodedTile(TIFF *tif, uint32_t tile, void *buf, tmsize_t size)
     else if ((*tif->tif_decodetile)(tif, (uint8_t *)buf, size,
                                     (uint16_t)(tile / td->td_stripsperimage)))
     {
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, size, module))
+            return ((tmsize_t)(-1));
         (*tif->tif_postdecode)(tif, (uint8_t *)buf, size);
         return (size);
     }
@@ -1109,6 +1130,9 @@ tmsize_t _TIFFReadEncodedTileAndAllocBuffer(TIFF *tif, uint32_t tile,
     if ((*tif->tif_decodetile)(tif, (uint8_t *)*buf, size_to_read,
                                (uint16_t)(tile / td->td_stripsperimage)))
     {
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, size_to_read,
+                                        module))
+            return ((tmsize_t)(-1));
         (*tif->tif_postdecode)(tif, (uint8_t *)*buf, size_to_read);
         return (size_to_read);
     }
@@ -1626,6 +1650,9 @@ int TIFFReadFromUserBuffer(TIFF *tif, uint32_t strile, void *inbuf,
     }
     if (ret)
     {
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, outsize,
+                                        module))
+            return ((tmsize_t)(-1));
         (*tif->tif_postdecode)(tif, (uint8_t *)outbuf, outsize);
     }
 
@@ -1655,27 +1682,71 @@ void _TIFFNoPostDecode(TIFF *tif, uint8_t *buf, tmsize_t cc)
 void _TIFFSwab16BitData(TIFF *tif, uint8_t *buf, tmsize_t cc)
 {
     (void)tif;
-    assert((cc & 1) == 0);
+    if ((cc & 1) != 0)
+        TIFFWarningExtR(tif, "_TIFFSwab16BitData()",
+                        "Number of bytes to swap %" TIFF_SIZE_FORMAT
+                        " is odd. Result might be incorrect",
+                        cc);
     TIFFSwabArrayOfShort((uint16_t *)buf, cc / 2);
 }
 
 void _TIFFSwab24BitData(TIFF *tif, uint8_t *buf, tmsize_t cc)
 {
     (void)tif;
-    assert((cc % 3) == 0);
+    if ((cc % 3) != 0)
+        TIFFWarningExtR(tif, "_TIFFSwab24BitData()",
+                        "Number of bytes to swap %" TIFF_SIZE_FORMAT
+                        " is not a multiple of 3. Result might be incorrect",
+                        cc);
     TIFFSwabArrayOfTriples((uint8_t *)buf, cc / 3);
 }
 
 void _TIFFSwab32BitData(TIFF *tif, uint8_t *buf, tmsize_t cc)
 {
     (void)tif;
-    assert((cc & 3) == 0);
+    if ((cc & 3) != 0)
+        TIFFWarningExtR(tif, "_TIFFSwab32BitData()",
+                        "Number of bytes to swap %" TIFF_SIZE_FORMAT
+                        " is not a multiple of 4. Result might be incorrect",
+                        cc);
     TIFFSwabArrayOfLong((uint32_t *)buf, cc / 4);
 }
 
 void _TIFFSwab64BitData(TIFF *tif, uint8_t *buf, tmsize_t cc)
 {
     (void)tif;
-    assert((cc & 7) == 0);
+    if ((cc & 7) != 0)
+        TIFFWarningExtR(tif, "_TIFFSwab64BitData()",
+                        "Number of bytes to swap %" TIFF_SIZE_FORMAT
+                        " is not a multiple of 8. Result might be incorrect",
+                        cc);
     TIFFSwabArrayOfDouble((double *)buf, cc / 8);
+}
+
+/* Checks if provided number of bytes to be swapped conforms with a given
+ * postdecode function. */
+int _TIFFCheckPostDecodeLenght(TIFF *tif, TIFFPostMethod tif_postdecode,
+                               tmsize_t cc, const char *modulename)
+{
+    int idx = -1;
+    const char multiplenumber[] = {2, 3, 4, 8};
+    const char *postdecodename[] = {"_TIFFSwab16BitData", "_TIFFSwab24BitData",
+                                    "_TIFFSwab32BitData", "_TIFFSwab64BitData"};
+    if (tif_postdecode == _TIFFSwab16BitData && ((cc & 1) != 0))
+        idx = 0;
+    else if (tif_postdecode == _TIFFSwab24BitData && ((cc % 3) != 0))
+        idx = 1;
+    else if (tif_postdecode == _TIFFSwab32BitData && ((cc & 3) != 0))
+        idx = 2;
+    else if (tif_postdecode == _TIFFSwab64BitData && ((cc & 7) != 0))
+        idx = 3;
+    else
+        return 1;
+
+    TIFFWarningExtR(tif, modulename,
+                    "Number of bytes (%" TIFF_SIZE_FORMAT
+                    ") to swap with %s"
+                    " is not a multiple of %d. Result might be incorrect",
+                    cc, postdecodename[idx], multiplenumber[idx]);
+    return 0;
 }

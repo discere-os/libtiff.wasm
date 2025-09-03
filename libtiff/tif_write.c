@@ -170,6 +170,9 @@ int TIFFWriteScanline(TIFF *tif, void *buf, uint32_t row, uint16_t sample)
     }
 
     /* swab if needed - note that source buffer will be altered */
+    if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode,
+                                    tif->tif_scanlinesize, module))
+        return ((tmsize_t)(-1));
     tif->tif_postdecode(tif, (uint8_t *)buf, tif->tif_scanlinesize);
 
     status = (*tif->tif_encoderow)(tif, (uint8_t *)buf, tif->tif_scanlinesize,
@@ -287,6 +290,8 @@ tmsize_t TIFFWriteEncodedStrip(TIFF *tif, uint32_t strip, void *data,
     if (td->td_compression == COMPRESSION_NONE)
     {
         /* swab if needed - note that source buffer will be altered */
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, cc, module))
+            return ((tmsize_t)(-1));
         tif->tif_postdecode(tif, (uint8_t *)data, cc);
 
         if (!isFillOrder(tif, td->td_fillorder) &&
@@ -303,6 +308,8 @@ tmsize_t TIFFWriteEncodedStrip(TIFF *tif, uint32_t strip, void *data,
         return ((tmsize_t)-1);
 
     /* swab if needed - note that source buffer will be altered */
+    if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, cc, module))
+        return ((tmsize_t)(-1));
     tif->tif_postdecode(tif, (uint8_t *)data, cc);
 
     if (!(*tif->tif_encodestrip)(tif, (uint8_t *)data, cc, sample))
@@ -489,6 +496,8 @@ tmsize_t TIFFWriteEncodedTile(TIFF *tif, uint32_t tile, void *data, tmsize_t cc)
     if (td->td_compression == COMPRESSION_NONE)
     {
         /* swab if needed - note that source buffer will be altered */
+        if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, cc, module))
+            return ((tmsize_t)(-1));
         tif->tif_postdecode(tif, (uint8_t *)data, cc);
 
         if (!isFillOrder(tif, td->td_fillorder) &&
@@ -504,6 +513,8 @@ tmsize_t TIFFWriteEncodedTile(TIFF *tif, uint32_t tile, void *data, tmsize_t cc)
     if (!(*tif->tif_preencode)(tif, sample))
         return ((tmsize_t)(-1));
     /* swab if needed - note that source buffer will be altered */
+    if (!_TIFFCheckPostDecodeLenght(tif, tif->tif_postdecode, cc, module))
+        return ((tmsize_t)(-1));
     tif->tif_postdecode(tif, (uint8_t *)data, cc);
 
     if (!(*tif->tif_encodetile)(tif, (uint8_t *)data, cc, sample))

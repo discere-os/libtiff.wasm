@@ -421,6 +421,9 @@ extern "C"
     extern void _TIFFSwab24BitData(TIFF *tif, uint8_t *buf, tmsize_t cc);
     extern void _TIFFSwab32BitData(TIFF *tif, uint8_t *buf, tmsize_t cc);
     extern void _TIFFSwab64BitData(TIFF *tif, uint8_t *buf, tmsize_t cc);
+    extern int _TIFFCheckPostDecodeLenght(TIFF *tif,
+                                          TIFFPostMethod tif_postdecode,
+                                          tmsize_t cc, const char *modulename);
     extern int TIFFFlushData1(TIFF *tif);
     extern int TIFFDefaultDirectory(TIFF *tif);
     extern void _TIFFSetDefaultCompressionState(TIFF *tif);
