@@ -1,0 +1,134 @@
+{
+  "name": "@discere-os/libtiff.wasm",
+  "version": "4.7.0-wasm.1",
+  "description": "Native-level TIFF processing library compiled to WebAssembly with WebGPU + SIMD optimization",
+  "keywords": [
+    "tiff",
+    "wasm",
+    "webassembly",
+    "image-processing",
+    "webgpu",
+    "simd",
+    "emscripten",
+    "discere-os",
+  ],
+  "homepage": "https://github.com/discere-os/discere-nucleus",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/discere-os/discere-nucleus.git",
+    "directory": "client/emscripten/libtiff.wasm"
+  },
+  "bugs": {
+    "url": "https://github.com/discere-os/discere-nucleus/issues"
+  },
+  "license": "LibTIFF",
+  "author": {
+    "name": "Superstruct Ltd",
+    "email": "hello@discere.school",
+    "url": "https://discere.school"
+  },
+  "main": "./dist/libtiff-main.js",
+  "types": "./dist/types.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/libtiff-main.js",
+      "require": "./dist/libtiff-main.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./side": "./dist/libtiff-side.wasm",
+    "./main": "./dist/libtiff-main.js",
+    "./types": "./dist/types.d.ts",
+    "./bindings": "./dist/bindings.js",
+    "./demo": "./dist/demo.js",
+    "./benchmark": "./dist/benchmark.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "browsers": "Chrome >= 113, Edge >= 113"
+  },
+  "browserslist": [
+    "Chrome >= 113",
+    "Edge >= 113"
+  ],
+  "scripts": {
+    "build": "npm run build:wasm && npm run build:ts",
+    "build:wasm": "./build-wasm.sh",
+    "build:ts": "tsc --project tsconfig.json",
+    "build:dual": "cmake --build . --target build_dual_all",
+    "build:side": "cmake --build . --target build_side_module",
+    "build:main": "cmake --build . --target build_main_module",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:benchmark": "node dist/benchmark.js",
+    "demo": "node dist/demo.js",
+    "clean": "rm -rf dist/ build-dual-* build-wasm*",
+    "lint": "eslint src/ --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run test && npm run lint && npm run typecheck"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/emscripten": "^1.39.13",
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {
+    "@discere-os/zlib.wasm": "^1.3.0",
+    "@discere-os/libjpeg-turbo.wasm": "^3.0.0",
+    "@discere-os/libwebp.wasm": "^1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@discere-os/zlib.wasm": {
+      "optional": false
+    },
+    "@discere-os/libjpeg-turbo.wasm": {
+      "optional": false
+    },
+    "@discere-os/libwebp.wasm": {
+      "optional": false
+    }
+  },
+  "discere": {
+    "architecture": "dual-build",
+    "side_module": {
+      "target": "host-main-module",
+      "dependencies": ["@discere-os/zlib.wasm/side", "@discere-os/libjpeg-turbo.wasm/side", "@discere-os/libwebp.wasm/side"],
+      "deployment": "wasm.discere.cloud"
+    },
+    "main_module": {
+      "target": "npm",
+      "self_contained": true,
+      "deployment": "npm registry"
+    },
+    "features": {
+      "webgpu": true,
+      "simd": true,
+      "threading": true,
+      "shared_memory": true,
+    },
+    "browser_requirements": {
+      "webgpu": "required",
+      "wasm_simd": "required",
+      "shared_array_buffer": "required",
+      "minimum_chrome": 113,
+      "minimum_edge": 113,
+      "firefox": "not_supported",
+      "safari": "not_supported"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

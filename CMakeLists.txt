@@ -47,6 +47,41 @@ project(tiff
         VERSION "${LIBTIFF_VERSION}"
         LANGUAGES C CXX)
 
+#
+# WASM-Native Dual Build Architecture (Early Configuration)
+# Copyright © 2025 Superstruct Ltd, New Zealand
+# Licensed under libtiff license
+#
+# This must be configured before add_subdirectory() calls
+# so that variables are available to subdirectory CMakeLists.txt files
+#
+
+# Detect Emscripten build environment
+if(EMSCRIPTEN)
+    message(STATUS "=== WASM-Native Build Configuration ===")
+
+    # Build type configuration
+    option(BUILD_SIDE_MODULE "Build SIDE_MODULE for dynamic loading into host applications" ON)
+    option(BUILD_MAIN_MODULE "Build MAIN_MODULE for NPM distribution" ON)
+
+    # SIDE_MODULE configuration
+    if(BUILD_SIDE_MODULE)
+        message(STATUS "  SIDE_MODULE build:                  ENABLED")
+        set(WASM_COMPAT_SIDE_SOURCE "${CMAKE_SOURCE_DIR}/wasm/wasm_compat_side.c" CACHE INTERNAL "SIDE_MODULE compatibility source")
+        add_compile_definitions(LIBTIFF_WASM_SIDE_MODULE=1)
+    endif()
+
+    # MAIN_MODULE configuration
+    if(BUILD_MAIN_MODULE)
+        message(STATUS "  MAIN_MODULE build:                  ENABLED")
+        set(WASM_COMPAT_MAIN_SOURCE "${CMAKE_SOURCE_DIR}/wasm/wasm_compat_main.c" CACHE INTERNAL "MAIN_MODULE compatibility source")
+        add_compile_definitions(LIBTIFF_WASM_MAIN_MODULE=1)
+    endif()
+
+    message(STATUS "=== Early WASM Configuration Complete ===")
+    message(STATUS "")
+endif()
+
 if(NOT CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
   # libtiff is being included as a subproject of some other project.
   set(TIFF_INSTALL_DEFAULT OFF)
@@ -248,3 +283,144 @@ message(STATUS "")
 # message(STATUS "  X Athena Widgets support:           ${HAVE_XAW}")
 message(STATUS "  OpenGL support:                     Requested:${tiff-opengl} Availability:${HAVE_OPENGL} Support:${OPENGL_SUPPORT}")
 message(STATUS "")
+
+#
+# WASM-Native Dual Build Architecture
+# Copyright © 2025 Superstruct Ltd, New Zealand
+# Licensed under libtiff license
+#
+# WASM builds with maximum browser API utilization
+# Standalone library for dynamic loading architecture
+#
+
+# Detect Emscripten build environment
+if(EMSCRIPTEN)
+    message(STATUS "=== WASM-Native Build Configuration ===")
+
+    # Build type configuration
+    option(BUILD_SIDE_MODULE "Build SIDE_MODULE for dynamic loading into host applications" ON)
+    option(BUILD_MAIN_MODULE "Build MAIN_MODULE for NPM distribution" ON)
+
+    # Maximum feature enablement - no browser compatibility concerns
+    set(WASM_COMMON_FLAGS
+        "-msimd128"              # SIMD instructions (WebGPU+SIMD browsers only)
+        "-pthread"               # Threading with SharedArrayBuffer
+        "-fPIC"                  # Position independent code for dynamic loading
+        "-O3"                    # Maximum optimization
+        "-flto"                  # Link-time optimization
+        "-DNDEBUG"              # Release build optimizations
+    )
+
+    # Native-level browser API integration
+    set(WASM_LINK_FLAGS_COMMON
+        "-s ALLOW_MEMORY_GROWTH=1"        # Dynamic memory management
+        "-s FORCE_FILESYSTEM=1"           # Full filesystem API access
+        "-s USE_PTHREADS=1"              # Threading support
+        "-s SHARED_MEMORY=1"             # SharedArrayBuffer for zero-copy
+        "-s ASYNCIFY=1"                  # Async/await in C/C++
+        "-s DISABLE_EXCEPTION_CATCHING=1" # Performance optimization
+        "-s INITIAL_MEMORY=64MB"         # Generous initial allocation for TIFF processing
+        "-s MAXIMUM_MEMORY=4GB"          # No artificial memory limits
+        "-s PTHREAD_POOL_SIZE=navigator.hardwareConcurrency" # Utilize all CPU cores
+    )
+
+    # Graphics and imaging specific features for TIFF processing
+    list(APPEND WASM_LINK_FLAGS_COMMON
+        "-s USE_WEBGPU=1"               # WebGPU compute for parallel TIFF processing
+    )
+
+    message(STATUS "  WASM SIMD support:                  ENABLED (msimd128)")
+    message(STATUS "  WASM Threading:                     ENABLED (pthreads + SharedArrayBuffer)")
+    message(STATUS "  WASM WebGPU:                        ENABLED (compute shaders)")
+    message(STATUS "  WASM Memory limits:                 4GB maximum, 64MB initial")
+
+    # SIDE_MODULE: Hosted by main application, exclude system libraries
+    if(BUILD_SIDE_MODULE)
+        message(STATUS "  SIDE_MODULE build:                  ENABLED")
+
+        set(WASM_LINK_FLAGS_SIDE
+            "-s SIDE_MODULE=1"
+            # System libraries provided by host MAIN_MODULE
+            # NEVER link zlib, jpeg, webp - use dynamic SIDE_MODULEs via dlopen()
+        )
+
+        # Create SIDE_MODULE target with maximum features
+        add_custom_target(build_side_module
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/build-dual-side
+            COMMAND ${CMAKE_COMMAND}
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+                -DCMAKE_BUILD_TYPE=Release
+                -DBUILD_SIDE_MODULE=ON
+                -DBUILD_MAIN_MODULE=OFF
+                -S ${CMAKE_SOURCE_DIR}
+                -B ${CMAKE_CURRENT_BINARY_DIR}/build-dual-side
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/build-dual-side --parallel
+            COMMENT "Building SIDE_MODULE with native-level features for dynamic loading"
+        )
+
+        list(APPEND WASM_COMPILE_FLAGS ${WASM_COMMON_FLAGS})
+        list(APPEND WASM_LINK_FLAGS ${WASM_LINK_FLAGS_COMMON} ${WASM_LINK_FLAGS_SIDE})
+        add_compile_definitions(LIBTIFF_WASM_SIDE_MODULE=1)
+
+        # SIDE_MODULE compatibility layer will be added after main library target is defined
+        set(WASM_COMPAT_SIDE_SOURCE "${CMAKE_SOURCE_DIR}/wasm/wasm_compat_side.c" CACHE INTERNAL "")
+    endif()
+
+    # MAIN_MODULE: Self-contained for NPM packages
+    if(BUILD_MAIN_MODULE)
+        message(STATUS "  MAIN_MODULE build:                  ENABLED")
+
+        set(WASM_LINK_FLAGS_MAIN
+            "-s MAIN_MODULE=1"
+            "-s MODULARIZE=1"
+            "-s EXPORT_ES6=1"
+            "-s EXPORT_NAME=LibTIFFWASM"
+            # Include ALL system libraries for standalone usage
+            "-s USE_ZLIB=1"
+            "-s USE_LIBJPEG=1"
+            # Advanced features for maximum performance
+            "--closure=1"                 # Google Closure Compiler optimization
+            "-s PROXY_TO_PTHREAD=1"      # Main thread responsiveness
+        )
+
+        # Create MAIN_MODULE target with full feature set
+        add_custom_target(build_main_module
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/build-dual-main
+            COMMAND ${CMAKE_COMMAND}
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+                -DCMAKE_BUILD_TYPE=Release
+                -DBUILD_SIDE_MODULE=OFF
+                -DBUILD_MAIN_MODULE=ON
+                -S ${CMAKE_SOURCE_DIR}
+                -B ${CMAKE_CURRENT_BINARY_DIR}/build-dual-main
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/build-dual-main --parallel
+            COMMENT "Building MAIN_MODULE with all system libraries for NPM distribution"
+        )
+
+        list(APPEND WASM_COMPILE_FLAGS ${WASM_COMMON_FLAGS})
+        list(APPEND WASM_LINK_FLAGS ${WASM_LINK_FLAGS_COMMON} ${WASM_LINK_FLAGS_MAIN})
+        add_compile_definitions(LIBTIFF_WASM_MAIN_MODULE=1)
+
+        # MAIN_MODULE compatibility layer will be added after main library target is defined
+        set(WASM_COMPAT_MAIN_SOURCE "${CMAKE_SOURCE_DIR}/wasm/wasm_compat_main.c" CACHE INTERNAL "")
+    endif()
+
+    # Apply WASM flags to all targets
+    if(WASM_COMPILE_FLAGS)
+        add_compile_options(${WASM_COMPILE_FLAGS})
+    endif()
+
+    if(WASM_LINK_FLAGS)
+        add_link_options(${WASM_LINK_FLAGS})
+    endif()
+
+    # Dual build target for complete ecosystem
+    add_custom_target(build_dual_all
+        DEPENDS build_side_module build_main_module
+        COMMENT "Building complete dual WASM architecture (SIDE + MAIN modules)"
+    )
+
+    message(STATUS "=== End WASM Configuration ===")
+    message(STATUS "")
+
+endif()

@@ -276,3 +276,19 @@ if(CXX_SUPPORT)
 
 endif()
 
+# WASM-Native Compatibility Layer Integration
+# Add WASM-specific sources when building with Emscripten
+if(EMSCRIPTEN AND DEFINED WASM_COMPAT_SIDE_SOURCE)
+  if(BUILD_SIDE_MODULE)
+    target_sources(tiff PRIVATE ${WASM_COMPAT_SIDE_SOURCE})
+    message(STATUS "  SIDE_MODULE compatibility layer added to tiff library")
+  endif()
+endif()
+
+if(EMSCRIPTEN AND DEFINED WASM_COMPAT_MAIN_SOURCE)
+  if(BUILD_MAIN_MODULE)
+    target_sources(tiff PRIVATE ${WASM_COMPAT_MAIN_SOURCE})
+    message(STATUS "  MAIN_MODULE compatibility layer added to tiff library")
+  endif()
+endif()
+
