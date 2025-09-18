@@ -33,6 +33,10 @@ export interface LibTIFFWASM {
   stackRestore(ptr: number): void;
   stackAlloc(size: number): number;
 
+  // Emscripten runtime functions
+  cwrap(ident: string, returnType: string, argTypes: string[]): Function;
+  ccall(ident: string, returnType: string, argTypes: string[], args: any[]): any;
+
   // Native C/C++ function bindings (ccall/cwrap wrappers)
   libtiff_main_init(): void;
   libtiff_webgpu_init(): void;

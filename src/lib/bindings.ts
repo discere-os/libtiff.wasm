@@ -18,7 +18,7 @@ import type {
   BrowserCapabilities,
   TIFFError,
   WASMMemoryView
-} from './types.js';
+} from './types.ts';
 
 /**
  * Native WASM Module Loader
@@ -32,40 +32,72 @@ export async function loadLibTIFFWASM(): Promise<LibTIFFWASM> {
   }
 
   // Mandatory WebGPU+SIMD detection - no fallbacks
-  if (!navigator.gpu) {
+  if (!(navigator as any).gpu) {
     throw new Error('WebGPU required - please upgrade to Chrome/Edge 113+ for native-level TIFF processing');
   }
 
-  if (!WebAssembly.simd) {
+  // Check SIMD support via validation
+  const simdTestBytes = new Uint8Array([
+    0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 9, 1, 7, 0, 65, 0, 253, 15, 26, 11
+  ]);
+  if (!WebAssembly.validate(simdTestBytes)) {
     throw new Error('WebAssembly SIMD required - please upgrade to Chrome/Edge 113+ for vectorized operations');
   }
 
-  // Dynamic import of WASM module (build system will resolve path)
-  const LibTIFFWASMFactory = (await import('../dist/libtiff-main.js')).default;
+  // Dynamic import strategy: Deno-first development with CDN fallback
+  let LibTIFFWASMFactory: Function | undefined;
+
+  // Deno development environment
+  if (typeof globalThis.Deno !== 'undefined') {
+    try {
+      LibTIFFWASMFactory = (await import('../../install/wasm/libtiff-main.js')).default;
+    } catch (error) {
+      console.warn('Failed to load local WASM module:', error);
+    }
+  }
+
+  // Browser runtime or Deno fallback - try CDN locations
+  if (!LibTIFFWASMFactory) {
+    const cdnUrls = [
+      'https://wasm.discere.cloud/libtiff/latest/main/',
+      'https://cdn.jsdelivr.net/npm/@discere-os/libtiff.wasm/dist/'
+    ];
+
+    for (const baseUrl of cdnUrls) {
+      try {
+        LibTIFFWASMFactory = (await import(`${baseUrl}libtiff-main.js`)).default;
+        break;
+      } catch { continue; }
+    }
+  }
+
+  if (!LibTIFFWASMFactory) {
+    throw new Error('Failed to load LibTIFF WASM module from any source');
+  }
+
+  // Load WASM binary for Deno development environment
+  let wasmBinary: ArrayBuffer | undefined;
+  if (typeof globalThis.Deno !== 'undefined') {
+    try {
+      const wasmPath = new URL('../../install/wasm/libtiff-main.wasm', import.meta.url).pathname;
+      const wasmBuffer = await Deno.readFile(wasmPath);
+      wasmBinary = wasmBuffer.buffer;
+    } catch (error) {
+      console.warn('Failed to load local WASM binary:', error);
+    }
+  }
 
   wasmModule = await LibTIFFWASMFactory({
-    // Maximum browser API utilization configuration
-    wasmBinary: undefined, // Let Emscripten handle binary loading
-    noInitialRun: true,    // Manual initialization control
-    noExitRuntime: true,   // Persistent module for multiple operations
+    wasmBinary,
+    noInitialRun: true,
+    noExitRuntime: true,
 
-    // Threading configuration
-    mainScriptUrlOrBlob: undefined, // Auto-detect
-
-    // Performance optimization
     locateFile: (path: string, scriptDirectory: string) => {
-      // CDN optimization for production deployment
-      if (path.endsWith('.wasm')) {
-        return scriptDirectory + path;
-      }
       return scriptDirectory + path;
     },
 
-    // Error handling
     onRuntimeInitialized: () => {
-      console.log('[LibTIFF WASM] Runtime initialized with native-level features');
-      // Initialize native C/C++ module
-      wasmModule!.libtiff_main_init();
+      console.log('[LibTIFF WASM] Runtime initialized successfully');
     },
 
     onAbort: (reason: string) => {
@@ -74,7 +106,7 @@ export async function loadLibTIFFWASM(): Promise<LibTIFFWASM> {
     }
   });
 
-  return wasmModule;
+  return wasmModule!;
 }
 
 /**
@@ -160,9 +192,10 @@ export class LibTIFFProcessor {
     const filenamePtr = this.memory.allocateString(filename);
 
     try {
-      // Call native C function - ALL logic in C/C++
-      const result = this.module.libtiff_create_from_rgba(
-        this.memory.readString(filenamePtr),
+      // Call native C function via cwrap
+      const createFromRGBA = this.module.cwrap('TIFFCreateFromRGBA', 'number', ['string', 'number', 'number', 'number', 'number']);
+      const result = createFromRGBA(
+        filename,
         dataMemView.ptr,
         width,
         height,
@@ -190,9 +223,10 @@ export class LibTIFFProcessor {
     const heightPtr = this.module._malloc(4);  // int*
 
     try {
-      // Call native C function - ALL logic in C/C++
-      const dataPtr = this.module.libtiff_read_to_rgba(
-        this.memory.readString(filenamePtr),
+      // Call native C function via cwrap
+      const readToRGBA = this.module.cwrap('TIFFReadToRGBA', 'number', ['string', 'number', 'number']);
+      const dataPtr = readToRGBA(
+        filename,
         widthPtr,
         heightPtr
       );
@@ -227,10 +261,9 @@ export class LibTIFFProcessor {
     const filenamePtr = this.memory.allocateString(filename);
 
     try {
-      // Call native C function - returns JSON string
-      const jsonStr = this.module.libtiff_get_metadata_json(
-        this.memory.readString(filenamePtr)
-      );
+      // Call native C function via cwrap
+      const getMetadata = this.module.cwrap('TIFFGetMetadataJSON', 'string', ['string']);
+      const jsonStr = getMetadata(filename);
 
       if (!jsonStr || jsonStr === '{}') {
         return null;
@@ -240,18 +273,6 @@ export class LibTIFFProcessor {
       return JSON.parse(jsonStr) as TIFFMetadata;
     } finally {
       this.module._free(filenamePtr);
-    }
-  }
-}
-
-      // Native C implementation handles all composition logic
-      this.module.libtiff_rhetoric_composition(
-        this.memory.readString(projectPtr),
-        this.memory.readString(modePtr)
-      );
-    } finally {
-      this.module._free(projectPtr);
-      this.module._free(modePtr);
     }
   }
 }
@@ -288,14 +309,12 @@ export class LibTIFF {
   private module: LibTIFFWASM;
 
   public readonly processor: LibTIFFProcessor;
-  public readonly education: LibTIFFEducation;
   public readonly performance: LibTIFFPerformance;
   public readonly memory: WASMMemoryManager;
 
   private constructor(module: LibTIFFWASM) {
     this.module = module;
     this.processor = new LibTIFFProcessor(module);
-    this.education = new LibTIFFEducation(module);
     this.performance = new LibTIFFPerformance(module);
     this.memory = new WASMMemoryManager(module);
   }
