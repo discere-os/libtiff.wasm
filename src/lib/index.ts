@@ -1,9 +1,9 @@
 /**
- * @module ${LIB_TITLE} WASM
- * TypeScript-first ${LIB_TITLE} library for WebAssembly
+ * @module Libtiff WASM
+ * TypeScript-first Libtiff library for WebAssembly
  */
 
-export default class ${LIB_TITLE}WASM {
+export default class LibtiffWASM {
   private module: any = null
   private initialized = false
 
@@ -18,8 +18,8 @@ export default class ${LIB_TITLE}WASM {
   private async loadWASM(): Promise<any> {
     // Try local build first
     const localPaths = [
-      './../../install/wasm/${LIB_NAME}-main.js',
-      './../../install/wasm/${LIB_NAME}-release.js',
+      './../../install/wasm/libtiff-main.js',
+      './../../install/wasm/libtiff-release.js',
     ]
 
     for (const path of localPaths) {
@@ -32,6 +32,6 @@ export default class ${LIB_TITLE}WASM {
       }
     }
 
-    throw new Error('Failed to load ${LIB_NAME}.wasm')
+    throw new Error('Failed to load libtiff.wasm')
   }
 }
