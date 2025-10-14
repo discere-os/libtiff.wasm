@@ -1,23 +1,37 @@
-/*
- * Copyright (c) 1988-1997 Sam Leffler
- * Copyright (c) 1991-1997 Silicon Graphics, Inc.
- * Copyright (c) 2025 Superstruct Ltd, New Zealand
- * Licensed under libtiff license
- *
- * libtiff.wasm - High-performance TIFF image processing library
- * WebAssembly port with SIMD optimization and modern browser API integration
+/**
+ * @module ${LIB_TITLE} WASM
+ * TypeScript-first ${LIB_TITLE} library for WebAssembly
  */
 
-export { LibTIFF, LibTIFFProcessor, LibTIFFPerformance, WASMMemoryManager } from './bindings.ts';
-export type {
-  LibTIFFWASM,
-  TIFFConfig,
-  TIFFMetadata,
-  PerformanceMetrics,
-  BrowserCapabilities,
-  TIFFError,
-  WASMMemoryView
-} from './types.ts';
+export default class ${LIB_TITLE}WASM {
+  private module: any = null
+  private initialized = false
 
-// Default export for convenience
-export { LibTIFF as default } from './bindings.ts';
+  async initialize(): Promise<void> {
+    if (this.initialized) return
+    
+    // Load WASM module
+    this.module = await this.loadWASM()
+    this.initialized = true
+  }
+
+  private async loadWASM(): Promise<any> {
+    // Try local build first
+    const localPaths = [
+      './../../install/wasm/${LIB_NAME}-main.js',
+      './../../install/wasm/${LIB_NAME}-release.js',
+    ]
+
+    for (const path of localPaths) {
+      try {
+        const modulePath = new URL(path, import.meta.url).href
+        const mod = await import(modulePath)
+        return await mod.default()
+      } catch (e) {
+        continue
+      }
+    }
+
+    throw new Error('Failed to load ${LIB_NAME}.wasm')
+  }
+}
